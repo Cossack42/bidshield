@@ -444,12 +444,14 @@ skipped_items = [r for r in results if r.decision == "skipped"]
 blocked_items = [r for r in results if r.decision == "blocked"]
 total_spend = sum(r.spend_gbp for r in results)
 
-m1, m2, m3, m4, m5 = st.columns(5)
-m1.metric("AUTO-BIDS", len(auto_bids))
-m2.metric("ESCALATED", len(escalated_items))
-m3.metric("SKIPPED", len(skipped_items))
-m4.metric("BLOCKED", len(blocked_items))
-m5.metric("SPEND", f"£{total_spend:.2f}")
+all_evaluated = len(results) + len(st.session_state.escalation_queue)
+m1, m2, m3, m4, m5, m6 = st.columns(6)
+m1.metric("EVALUATED", all_evaluated)
+m2.metric("AUTO-BIDS", len(auto_bids))
+m3.metric("ESCALATED", len(escalated_items) + len(st.session_state.escalation_queue))
+m4.metric("SKIPPED", len(skipped_items))
+m5.metric("BLOCKED", len(blocked_items))
+m6.metric("SPEND", f"£{total_spend:.2f}")
 
 # ── Budget bar ────────────────────────────────────────────────────────────────
 budget_pct = min(total_spend / daily_budget, 1.0) if daily_budget > 0 else 0
@@ -499,6 +501,18 @@ with col_stream:
                 meta_parts.append(f'<span class="cpm-val">£{r.bid_cpm_gbp:.2f} CPM</span>')
             if r.spend_gbp:
                 meta_parts.append(f'<span class="spend-val">£{r.spend_gbp:.2f}</span>')
+            meta_parts.append(f'<span style="color:#3a3d4a;">{r.context.estimated_impressions:,} impr</span>')
+
+            # Score breakdown pills
+            score_pills_html = ""
+            if r.score and r.decision != "skipped":
+                score_pills_html = (
+                    f'<div class="esc-scores">'
+                    f'<span class="esc-score-pill">Relevance {int(r.score.brand_relevance)}</span>'
+                    f'<span class="esc-score-pill">Risk {int(r.score.safety_risk)}</span>'
+                    f'<span class="esc-score-pill">Intent {int(r.score.intent_strength)}</span>'
+                    f'</div>'
+                )
 
             reasoning_html = ""
             if r.score and r.score.reasoning:
@@ -531,6 +545,7 @@ with col_stream:
                 f'<div class="bid-decision bid-decision--{css}">{label}</div>{human_badge}'
                 f'<span class="bid-channel">{r.context.channel} · {r.context.topic_category}</span>'
                 f'<div class="bid-prompt">"{r.context.user_prompt[:120]}"</div>'
+                f'{score_pills_html}'
                 f'<div class="bid-meta">{"".join(f"<span>{p}</span>" for p in meta_parts)}</div>'
                 f'{reasoning_html}'
                 f'{creative_html}'
@@ -601,6 +616,39 @@ with col_right:
                 f'</div>',
                 unsafe_allow_html=True,
             )
+
+# ── Summary Report ────────────────────────────────────────────────────────────
+if st.session_state.stream_complete and results:
+    st.markdown("---")
+    pending = len(st.session_state.escalation_queue)
+    budget_saved = daily_budget - total_spend
+    blocked_spend = sum(
+        (r.bid_cpm_gbp or 0) * r.context.estimated_impressions / 1000
+        for r in results if r.decision == "blocked"
+    )
+
+    summary_parts = [
+        f"Evaluated **{all_evaluated}** placements across {len(set(r.context.channel for r in results))} channels.",
+        f"Auto-bid on **{len(auto_bids)}**, escalated **{len(escalated_items) + pending}**, skipped **{len(skipped_items)}**, blocked **{len(blocked_items)}**.",
+        f"Total spend: **£{total_spend:.2f}** of £{daily_budget:.0f} budget ({budget_pct*100:.0f}% utilized).",
+    ]
+    if blocked_spend > 0:
+        summary_parts.append(f"Overmind prevented **£{blocked_spend:.2f}** in risky spend.")
+    if budget_saved > 0:
+        summary_parts.append(f"Budget saved by skipping low-fit contexts: **£{budget_saved:.2f}**.")
+    if pending > 0:
+        summary_parts.append(f"**{pending}** placements awaiting human review in the escalation queue.")
+
+    st.markdown(
+        '<div class="section-label">📋 Summary Report</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div style="background:#0d0f16; border:1px solid #1a1d28; border-radius:10px; padding:16px 20px;">'
+        + "<br/>".join(summary_parts)
+        + '</div>',
+        unsafe_allow_html=True,
+    )
 
 # ── Run the bid stream ────────────────────────────────────────────────────────
 if start_stream:
