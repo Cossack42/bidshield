@@ -215,9 +215,10 @@ st.markdown("""
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.7rem;
         background: #1a1d28;
-        padding: 3px 10px;
+        padding: 4px 10px;
         border-radius: 20px;
-        color: #8b8fa3;
+        color: #b0b3c4;
+        border: 1px solid #2a2d3a;
     }
 
     /* ── Supervision event ────────────────────────────── */
