@@ -7,6 +7,13 @@ Uses Claude for scoring + creative generation, Tavily for context enrichment.
 import os
 import json
 import subprocess
+
+# Initialize Overmind tracing — wraps all LLM calls automatically
+_overmind_key = os.getenv("OVERMIND_API_KEY")
+if _overmind_key:
+    from overmind import init as overmind_init
+    overmind_init(overmind_api_key=_overmind_key, service_name="bidshield")
+
 from src.models import (
     CampaignBrief, ConversationContext, ContextScore, AdCreative,
     BidStreamResult, CampaignAction, AgentState,
@@ -14,14 +21,14 @@ from src.models import (
 from src import tools, supervisor
 
 
-def ask_claude(prompt: str, model: str = "claude-haiku-4-5-20251001") -> str:
+def ask_claude(prompt: str, model: str = "claude-haiku-4-5-20251001", max_tokens: int = 600) -> str:
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if api_key:
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
             model=model,
-            max_tokens=600,
+            max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}]
         )
         return response.content[0].text.strip()
@@ -200,7 +207,7 @@ def process_context(
         campaign_id=brief.id,
         action_type="bid",
         description=f"Auto-bid £{bid_cpm:.2f} CPM on '{context.user_prompt[:40]}...'",
-        value={"cpm_gbp": bid_cpm, "context_id": context.id},
+        value={"cpm_gbp": bid_cpm, "context_id": context.id, "estimated_impressions": context.estimated_impressions},
     )
 
     allowed, events = supervisor.apply_supervision(
@@ -257,7 +264,7 @@ def process_escalation(
         campaign_id=brief.id,
         action_type="bid",
         description=f"Human-approved bid £{bid_cpm:.2f} CPM",
-        value={"cpm_gbp": bid_cpm, "context_id": result.context.id, "human_approved": True},
+        value={"cpm_gbp": bid_cpm, "context_id": result.context.id, "human_approved": True, "estimated_impressions": result.context.estimated_impressions},
     )
 
     allowed, events = supervisor.apply_supervision(
