@@ -59,6 +59,14 @@ st.markdown("""
         box-shadow: 0 0 0 1px #3b82f620 !important;
     }
 
+    /* ── Sidebar number inputs ────────────────────────── */
+    section[data-testid="stSidebar"] .stNumberInput input {
+        min-width: 0 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stSidebar"] {
+        min-width: 280px;
+    }
+
     /* ── Metrics ──────────────────────────────────────── */
     div[data-testid="stMetric"] {
         background: linear-gradient(135deg, #0f1118 0%, #12141d 100%);
@@ -373,9 +381,8 @@ with st.sidebar:
     brand_objective = st.text_input("Objective", p["objective"])
     target_audience = st.text_input("Target Audience", p["audience"])
 
-    c1, c2 = st.columns(2)
-    daily_budget = c1.number_input("Budget (£)", value=500.0, step=50.0)
-    max_cpm = c2.number_input("Max CPM (£)", value=5.0, step=0.5)
+    daily_budget = st.number_input("Daily Budget (£)", value=500.0, step=50.0)
+    max_cpm = st.number_input("Max CPM (£)", value=5.0, step=0.5)
 
     forbidden_topics = st.text_area(
         "Forbidden Topics",
